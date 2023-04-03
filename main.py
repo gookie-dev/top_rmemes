@@ -1,22 +1,18 @@
-import praw, requests, re, json, os
-from instabot import Bot
+import re
+import json
+import config
+import requests
+import threading
+import praw as praw
+from instagrapi import Client
 
-reddit = praw.Reddit(client_id="*********", client_secret="**************************", user_agent="*********")
-insta = Bot()
-insta.login(username="*********", password="**************************")
-postList = []
 
-with open('postlist.txt', 'r') as filehandle:
-    postList = json.load(filehandle)
-
-#clear#
-
-for submission in reddit.subreddit("memes").top(limit=25, time_filter="day"):
-    title = submission.title
-    if title not in postList:
-        try:
-            postList.pop()
-            postList.insert(0, submission.title)
+def post_new_meme():
+    threading.Timer(3600, post_new_meme).start()
+    for submission in reddit.subreddit("memes").top(limit=25, time_filter="day"):
+        if submission.url not in buffer:
+            buffer.pop()
+            buffer.insert(0, submission.url)
             file_name = submission.url.split("/")
             if len(file_name) == 0:
                 file_name = re.findall("/(.*?)", submission.url)
@@ -24,12 +20,21 @@ for submission in reddit.subreddit("memes").top(limit=25, time_filter="day"):
             if "." not in file_name:
                 file_name += ".jpg"
             r = requests.get(submission.url)
-            with open("pic/" + file_name, "wb") as f:
-                f.write(r.content)
-            print("New Post: " + submission.title + "\nPicture: " + file_name)
-            insta.upload_photo("pic/" + file_name, caption=submission.title)
-        except:
-            pass
+            with open("./memes/" + file_name, "wb") as meme:
+                meme.write(r.content)
+            try:
+                instagram.photo_upload(path="./memes/" + file_name, caption=submission.title)
+                print(f"posted ./memes/{file_name} as {submission.title}")
+            except Exception as e:
+                print(f"failed ./memes/{file_name} with {e}")
+    with open('buffer.json', 'w') as buffer_file:
+        json.dump(buffer, buffer_file)
 
-with open('postlist.txt', 'w') as filehandle:
-    json.dump(postList, filehandle)
+
+instagram = Client()
+instagram.login(config.username, config.password)
+reddit = praw.Reddit(client_id=config.client_id, client_secret=config.client_secret, user_agent=config.user_agent)
+with open('buffer.json', 'r') as file:
+    buffer = json.load(file)
+
+post_new_meme()
